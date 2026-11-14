@@ -22,16 +22,20 @@ _HEADERS = {
     "Accept-Language": "ar,en;q=0.9",
 }
 
-_OG_RE = re.compile(
-    r'<meta[^>]+property=["\']og:(\w+)["\'][^>]+content=["\']([^"\']*)["\']', re.I
+_OG_PAIRS = re.compile(
+    r'<meta[^>]+(?:property|name)=["\']([^"\']+)["\'][^>]+content=["\']([^"\']*)["\']', re.I
 )
-_OG_RE_REV = re.compile(
-    r'<meta[^>]+content=["\']([^"\']*)["\'][^>]+property=["\']og:(\w+)["\']', re.I
+_OG_PAIRS_REV = re.compile(
+    r'<meta[^>]+content=["\']([^"\']*)["\'][^>]+(?:property|name)=["\']([^"\']+)["\']', re.I
+)
+_TWITTER_GENERIC = re.compile(
+    r'<meta[^>]+(?:property|name)=["\']twitter:(\w+)["\'][^>]+content=["\']([^"\']*)["\']', re.I
 )
 _TITLE_RE = re.compile(r"<title>(.*?)</title>", re.S | re.I)
 _SUFFIX_RE = re.compile(
     r"\s*[\|·\-–—]\s*(anghami|أنجامي|أنغامي|أنجامى).*$", re.I | re.S
 )
+_CLOUDFLARE_RE = re.compile(r"(just a moment|cf-browser-challenge|cloudflare|attention required)", re.I)
 
 
 def _clean(text: str | None) -> str:
@@ -58,15 +62,32 @@ async def fetch_song(url: str) -> MediaInfo:
         except Exception as exc:
             raise DownloadError("🌐 تعذر فتح رابط أنجامي — تأكد منه وحاول مرة أخرى.") from exc
 
-    og: dict[str, str] = {}
-    for key, value in _OG_RE.findall(html):
-        og[key.lower()] = value
-    for value, key in _OG_RE_REV.findall(html):
-        og.setdefault(key.lower(), value)
+    # لو وصلتنا صفحة تحدٍّ من Cloudflare (شائعة مع سيرفرات السحابة) نعطي رسالة مفيدة
+    if _CLOUDFLARE_RE.search(html):
+        raise DownloadError(
+            "🛡 أنجامي رفضت فتح الصفحة من الخادم (حماية Cloudflare).\n"
+            "جرّب: 1) انسخ الرابط من زر «مشاركة» داخل التطبيق نفسه 2) وحاول مرة أخرى بعد قليل،\n"
+            "أو ابحث عن الأغنية نفسها على يوتيوب وابعت رابطها مباشرة."
+        )
 
-    title = _clean(og.get("title"))
-    description = _clean(og.get("description"))
-    image = og.get("image") or None
+    tags: dict[str, str] = {}
+    for key, value in _OG_PAIRS.findall(html):
+        tags[key.strip().lower()] = value
+    for value, key in _OG_PAIRS_REV.findall(html):
+        tags.setdefault(key.strip().lower(), value)
+    for key, value in _TWITTER_GENERIC.findall(html):
+        tags.setdefault(f"twitter:{key.strip().lower()}", value)
+
+    def pick(*keys: str) -> str:
+        for key in keys:
+            value = tags.get(key)
+            if value and value.strip():
+                return value.strip()
+        return ""
+
+    title = _clean(pick("og:title", "twitter:title"))
+    description = _clean(pick("og:description", "twitter:description", "description"))
+    image = pick("og:image", "twitter:image") or None
 
     if not title:
         m = _TITLE_RE.search(html)

@@ -1,13 +1,22 @@
 """غلاف yt-dlp: جلب معلومات الوسائط + التحميل بصيغة MP4 / MP3.
 
+أبرز حلول مشكلة «يوتيوب يطلب تسجيل الدخول / Sign in to confirm you're not a bot»
+وهي المشكلة الأشهر عند التشغيل من خوادم سحابية (Railway…):
+  1. سلسلة عملاء YouTube بديلة (android/ios ← tv ← web_safari ← الافتراضي)
+     تُجرَّب تلقائياً حتى لو حظر عميلٌ ما.
+  2. كوكيز المستخدم نفسه عبر YTDLP_COOKIES_FILE أو YTDLP_COOKIES_TEXT
+     (الحل النهائي للحظر — انظر README قسم «يوتيوب يطلب تسجيل الدخول»).
+
 ملاحظة: تيك توك يُرجع yt-dlp روابط بدون علامة مائية (play URL) افتراضياً.
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import os
 import re
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -36,6 +45,49 @@ class MediaInfo:
     raw: dict = field(default_factory=dict, repr=False)
 
 
+# ── أنماط حظر يوتيوب (راجع _with_yt_fallback و _map_error) ─────────────────
+_BOT_CHECK_RE = re.compile(
+    r"(not a bot|confirm you(?:.re| are) not a bot|bot.?check|unusual traffic|"
+    r"sign in to confirm|verify you are human|too many requests.*bot)",
+    re.I,
+)
+
+# سلسلة عملاء يوتيوب — yt-dlp يجرب أولها وينتقل للتالي فقط عند فشل «حظر الروبوت»
+_YT_CLIENT_CHAIN = [["android", "ios"], ["tv", "android"], ["web_safari"], ["ios"], [None]]
+
+# كوكيز من متغير البيئة تُكتب لملف مؤقت مرة واحدة فقط
+_cookies_cache: str | None = None
+
+
+def _cookies_path(settings) -> str | None:
+    """يرجع مسار ملف كوكيز جاهز لـ yt-dlp (أو None لو غير مضبوط)."""
+    global _cookies_cache
+    # 1) ملف صريح
+    cookies_file = getattr(settings, "ytdlp_cookies_file", "") or ""
+    if cookies_file and Path(cookies_file).is_file():
+        return cookies_file
+    # 2) محتوى من متغير بيئة (نص خام أو base64:...) — مثالي لـ Railway
+    cookies_text = getattr(settings, "ytdlp_cookies_text", "") or ""
+    if not cookies_text.strip():
+        return None
+    if _cookies_cache:
+        return _cookies_cache
+    content = cookies_text
+    if content.startswith("base64:"):
+        try:
+            content = base64.b64decode(content[len("base64:"):], validate=False).decode("utf-8", "ignore")
+        except Exception:
+            return None
+    try:
+        tmp = Path(tempfile.gettempdir()) / "video_downlouder_cookies.txt"
+        tmp.write_text(content, encoding="utf-8")
+        os.chmod(tmp, 0o600)
+    except OSError:
+        return None
+    _cookies_cache = str(tmp)
+    return _cookies_cache
+
+
 def _base_opts(settings) -> dict:
     opts = {
         "quiet": True,
@@ -51,11 +103,11 @@ def _base_opts(settings) -> dict:
     # حجم غير محدود = لا نضع سقفاً في yt-dlp (تيليجرام هو من يفرض عند الإرسال)
     if settings.max_file_size_mb > 0:
         opts["max_filesize"] = settings.max_file_size_bytes
-    # خيارات متقدمة (اختيارية)
     if settings.ytdlp_proxy:
         opts["proxy"] = settings.ytdlp_proxy
-    if settings.ytdlp_cookies_file and Path(settings.ytdlp_cookies_file).is_file():
-        opts["cookiefile"] = settings.ytdlp_cookies_file
+    cookies = _cookies_path(settings)
+    if cookies:
+        opts["cookiefile"] = cookies
     return opts
 
 
@@ -67,33 +119,69 @@ def _clean_title(title: str | None) -> str:
 def _map_error(exc: Exception) -> DownloadError:
     msg = str(exc)
     low = msg.lower()
+    if _BOT_CHECK_RE.search(msg):
+        return DownloadError(
+            "🤖 يوتيوب بيحظر سيرفر Railway مؤقتاً وبيطلب تحقق «إني مش روبوت».\n"
+            "الحل النهائي خلال دقيقة: أضف كوكيز حسابك في متغير YTDLP_COOKIES_TEXT "
+            "(الخطوات في README ← قسم «يوتيوب يطلب تسجيل الدخول»)، وأي تحميل بعدها هينجح."
+        )
     if "max_filesize" in low or "too large" in low or "file is larger" in low:
-        return DownloadError("📦 الملف أكبر من الحد المسموح (49 م.بايت).")
+        return DownloadError("📦 الملف أكبر من الحد المسموح.")
     if "private" in low:
         return DownloadError("🔒 المحتوى خاص (Private) — لا يمكن تحميله.")
     if "age" in low and ("confirm" in low or "restrict" in low):
-        return DownloadError("🔞 محتوى محظور على القُصّر — لا يمكن تحميله.")
+        return DownloadError("🔞 محتوى محظور على القُصّر — أضف كوكيز حسابك (YTDLP_COOKIES_TEXT) للتحميل.")
     if "unavailable" in low or "not available" in low or "removed" in low:
         return DownloadError("🚫 هذا المحتوى غير متاح أو تم حذفه.")
     if "login" in low or "sign in" in low or "cookies" in low:
-        return DownloadError("🔑 المنصة تطلب تسجيل الدخول لهذا المحتوى.")
+        return DownloadError(
+            "🔑 المنصة تمنع التحميل بدون كوكيز — أضف متغير YTDLP_COOKIES_TEXT "
+            "بكوكيز حسابك (الخطوات في README ← «يوتيوب يطلب تسجيل الدخول»)."
+        )
     if "unsupported url" in low:
         return DownloadError("🔗 الرابط غير مدعوم. جرّب رابطاً آخر.")
     if "timed out" in low or "timeout" in low:
         return DownloadError("⏰ انتهت مهلة الاتصال — حاول مرة أخرى.")
     if "no space" in low or "disk" in low:
         return DownloadError("💽 مساحة القرص غير كافية على الخادم.")
+    if "403" in low or "forbidden" in low:
+        return DownloadError("🚫 المنصة رفضت الطلب (403) — غالباً حظر مؤقت لسيرفرات السحابة. جرّب تاني بدري أو أضف كوكيز.")
     return DownloadError("⚠️ تعذر التحميل. تأكد من الرابط وحاول مرة أخرى.")
 
 
+def _with_yt_fallback(build_opts, call, settings):
+    """يجرب العملية بسلسلة عملاء يوتيوب ويعيد المحاولة فقط عند حظر «الروبوت».
+
+    build_opts() → dict جديد بكل محاولة (عشان نضيف extractor_args مستقل)
+    call(opts)   → النتيجة المطلوبة
+    """
+    last_exc: Exception | None = None
+    for clients in _YT_CLIENT_CHAIN:
+        opts = build_opts()
+        if clients:
+            opts["extractor_args"] = {"youtube": {"player_client": clients}}
+        try:
+            return call(opts)
+        except Exception as exc:
+            last_exc = exc
+            if not _BOT_CHECK_RE.search(str(exc)):
+                raise _map_error(exc) from exc
+            continue  # حظر روبوت؟ جرّب العميل التالي
+    raise _map_error(last_exc) from last_exc  # type: ignore[arg-type]
+
+
+def _extract(opts, url):
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        return ydl.extract_info(url, download=False)
+
+
 def fetch_info_sync(url: str, platform: str, settings) -> MediaInfo:
-    opts = _base_opts(settings)
-    opts["skip_download"] = True
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            data = ydl.extract_info(url, download=False)
-    except Exception as exc:
-        raise _map_error(exc) from exc
+    def build():
+        opts = _base_opts(settings)
+        opts["skip_download"] = True
+        return opts
+
+    data = _with_yt_fallback(build, lambda opts: _extract(opts, url), settings)
 
     if not data:
         raise DownloadError("⚠️ تعذر قراءة بيانات الرابط.")
@@ -127,47 +215,34 @@ def fetch_info_sync(url: str, platform: str, settings) -> MediaInfo:
     )
 
 
-def _search_query(query: str, settings):
-    """يبحث في يوتيوب ويرجع أول نتيجة (للأغاني المجلوبة من سبوتيفاي/أنجامي)."""
-    opts = _base_opts(settings)
-    opts["skip_download"] = True
-    opts["default_search"] = "ytsearch"
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            data = ydl.extract_info(f"ytsearch1:{query}", download=False)
-    except Exception as exc:
-        raise _map_error(exc) from exc
-    entries = (data or {}).get("entries") or []
-    if not entries:
-        raise DownloadError("🔍 لم أجد الأغنية — حاول رابطاً آخر.")
-    return entries[0]
-
-
 def download_audio_sync(info: MediaInfo, bitrate: str, settings, tmpdir: Path) -> Path:
     """تحميل أفضل صوت + تحويله إلى MP3 بالجودة المطلوبة. يرجع مسار الملف."""
     search_target = f"ytsearch1:{info.resolved_query}" if info.resolved_query else info.url
     outtmpl = str(tmpdir / "%(title).90s.%(ext)s")
 
-    opts = _base_opts(settings)
-    opts.update(
-        {
-            "format": "bestaudio/best",
-            "outtmpl": outtmpl,
-            "default_search": "ytsearch",
-            "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": bitrate.rstrip("kK"),
-                }
-            ],
-        }
-    )
-    try:
+    def build():
+        opts = _base_opts(settings)
+        opts.update(
+            {
+                "format": "bestaudio/best",
+                "outtmpl": outtmpl,
+                "default_search": "ytsearch",
+                "postprocessors": [
+                    {
+                        "key": "FFmpegExtractAudio",
+                        "preferredcodec": "mp3",
+                        "preferredquality": bitrate.rstrip("kK"),
+                    }
+                ],
+            }
+        )
+        return opts
+
+    def call(opts):
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([search_target])
-    except Exception as exc:
-        raise _map_error(exc) from exc
+
+    _with_yt_fallback(build, call, settings)
 
     files = sorted(tmpdir.glob("*.mp3"), key=os.path.getmtime, reverse=True)
     if not files:
@@ -193,13 +268,17 @@ def download_video_sync(info: MediaInfo, max_height: str, settings, tmpdir: Path
             f"bestvideo[height<={height}]+bestaudio/"
             f"best[height<={height}]/best"
         )
-    opts = _base_opts(settings)
-    opts.update({"format": fmt, "outtmpl": outtmpl, "merge_output_format": "mp4"})
-    try:
+
+    def build():
+        opts = _base_opts(settings)
+        opts.update({"format": fmt, "outtmpl": outtmpl, "merge_output_format": "mp4"})
+        return opts
+
+    def call(opts):
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([info.webpage_url or info.url])
-    except Exception as exc:
-        raise _map_error(exc) from exc
+
+    _with_yt_fallback(build, call, settings)
 
     files = sorted(
         [p for p in tmpdir.iterdir() if p.suffix.lower() in {".mp4", ".mkv", ".webm"}],

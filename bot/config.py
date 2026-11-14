@@ -67,7 +67,9 @@ class Settings:
 
     # ── خيارات متقدمة لـ yt-dlp (اختياري) ───────────────────────
     ytdlp_proxy: str = os.getenv("YTDLP_PROXY", "")            # مثال: socks5://user:pass@host:1080
-    ytdlp_cookies_file: str = os.getenv("YTDLP_COOKIES_FILE", "")  # ملف كوكيز لمحتوى مقيد بالعمر
+    ytdlp_cookies_file: str = os.getenv("YTDLP_COOKIES_FILE", "")  # ملف كوكيز (Netscape) للمحتوى المحظور
+    # محتوى الكوكيز نفسه كأسطر — أو base64:<...> — مثالي لـ Railway (لا حاجة لرفع ملفات)
+    ytdlp_cookies_text: str = os.getenv("YTDLP_COOKIES_TEXT", "")
 
     # ── لوحة التحكم ────────────────────────────────────────────
     dashboard_password: str = os.getenv("DASHBOARD_PASSWORD", "")
