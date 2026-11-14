@@ -52,8 +52,8 @@ class MediaInfo:
 
 # ── أنماط حظر يوتيوب (راجع _with_yt_fallback و _map_error) ─────────────────
 _BOT_CHECK_RE = re.compile(
-    r"(not a bot|confirm you(?:.re| are) not a bot|bot.?check|unusual traffic|"
-    r"sign in to confirm|verify you are human|too many requests.*bot)",
+    r"(not a bot|confirm you(?:'re| are| are not)|unusual traffic|bot.?check|"
+    r"verify you are human|too many requests.*bot)",
     re.I,
 )
 
@@ -215,12 +215,40 @@ def _clean_title(title: str | None) -> str:
 def _map_error(exc: Exception) -> DownloadError:
     msg = str(exc)
     low = msg.lower()
+    # الخطأ الخام يظهر دائماً في اللوجات — فأي فشل غير معروف يصبح تشخيصياً بدل ما يضيع
+    log.error("❌ yt-dlp raw error: %s", msg[:1500])
     if _BOT_CHECK_RE.search(msg):
         return DownloadError(
             "🤖 يوتيوب بيحظر سيرفر Railway مؤقتاً وبيطلب تحقق «إني مش روبوت».\n"
             "الحل النهائي خلال دقيقة: أضف كوكيز حسابك في متغير YTDLP_COOKIES_TEXT "
             "(الخطوات في README ← قسم «يوتيوب يطلب تسجيل الدخول»)، وأي تحميل بعدها هينجح."
         )
+    if re.search(r"(does not look like a netscape|unable to load cookies|failed to load cookies|error loading cookies|cookie.*load.*error|load(ing)?.{0,30}cookie)", low):
+        return DownloadError(
+            "🍪 متغير YTDLP_COOKIES_TEXT مضبوط لكن yt-dlp لم يستطع قراءة الملف.\n"
+            "افحص Deploy Logs على Railway — لازم تلاقي سطر «🍪 كوكيز يوتيوب: N سجل صالح».\n"
+            "لو ظهر سطر «❌»، صحح القيمة: نفّذ `base64 -w0 cookies.txt` وضع الناتج بعد `base64:` — بدون أسطر وبلا مسافات."
+        )
+    if "429" in low or "too many requests" in low:
+        return DownloadError("🚦 يوتيوب عندّينا كتير (429 Rate Limit) — انتظر دقائق ثم حاول مرة أخرى.")
+    if re.search(r"(video (does not exist|no longer exists)|this video does not exist|\b404\b|HTTP Error 404)", low):
+        return DownloadError("🔍 الرابط غير موجود — اتأكد إن الفيديو لسه شغال وجرّب تانى.")
+    if any(p in low for p in ("po token", "player response", "precondition check failed", "sig library", "nsig", "unable to extract", "failed to extract", "requested format", "format is not available", "unable to download", "no video formats")):
+        return DownloadError(
+            "🧩 يوتيوب غيّر حماية الجلسة ومش قادر أقرأ الفيديو.\n"
+            "الحل: التأكد أن آخر yt-dlp متثبت على السيرفر (الصورة تعيد البناء بإصدار مثبّت حديثاً) ومعاه الكوكيز — "
+            "افحص سطر «🍪» و«yt-dlp raw error» في Deploy Logs."
+        )
+    if re.search(r"(your country|your region|geo.?block|geo.?restrict|not available in your)", low):
+        return DownloadError("🌍 هذا المحتوى محظور جغرافياً على السيرفر — جرّب عبر بروكسي (YTDLP_PROXY).")
+    if "members" in low and ("only" in low or "join" in low):
+        return DownloadError("👥 محتوى مخصص لأعضاء القناة فقط — لا يمكن تحميله بحساب عادي.")
+    if "drm" in low:
+        return DownloadError("🔐 هذا المحتوى محمي بـ DRM — لا يمكن تحميله.")
+    if "copyright" in low or "removed by the uploader" in low:
+        return DownloadError("©️ الفيديو أُزيل لمخالفة حقوق النشر.")
+    if "live" in low and ("has ended" in low or "is not currently" in low):
+        return DownloadError("📺 البث المباشر انتهى بالفعل — تقدر تحمّل التسجيل لو اترفع على يوتيوب.")
     if "max_filesize" in low or "too large" in low or "file is larger" in low:
         return DownloadError("📦 الملف أكبر من الحد المسموح.")
     if "private" in low:
@@ -229,12 +257,6 @@ def _map_error(exc: Exception) -> DownloadError:
         return DownloadError("🔞 محتوى محظور على القُصّر — أضف كوكيز حسابك (YTDLP_COOKIES_TEXT) للتحميل.")
     if "unavailable" in low or "not available" in low or "removed" in low:
         return DownloadError("🚫 هذا المحتوى غير متاح أو تم حذفه.")
-    if re.search(r"(does not look like a netscape|unable to load cookies|failed to load cookies|error loading cookies|cookie.*load.*error|load(ing)?.{0,30}cookie)", low):
-        return DownloadError(
-            "🍪 متغير YTDLP_COOKIES_TEXT مضبوط لكن yt-dlp لم يستطع قراءة الملف.\n"
-            "افحص Deploy Logs على Railway — لازم تلاقي سطر «🍪 كوكيز يوتيوب: N سجل صالح».\n"
-            "لو ظهر سطر «❌»، صحح القيمة: نفّذ `base64 -w0 cookies.txt` وضع الناتج بعد `base64:` — بدون أسطر وبلا مسافات."
-        )
     if "login" in low or "sign in" in low or "cookies" in low:
         return DownloadError(
             "🔑 المنصة تمنع التحميل بدون كوكيز صالحة — راجع Deploy Logs على Railway؛\n"
@@ -248,7 +270,7 @@ def _map_error(exc: Exception) -> DownloadError:
         return DownloadError("💽 مساحة القرص غير كافية على الخادم.")
     if "403" in low or "forbidden" in low:
         return DownloadError("🚫 المنصة رفضت الطلب (403) — غالباً حظر مؤقت لسيرفرات السحابة. جرّب تاني بدري أو أضف كوكيز.")
-    return DownloadError("⚠️ تعذر التحميل. تأكد من الرابط وحاول مرة أخرى.")
+    return DownloadError("تعذر التحميل. شوف Deploy Logs على Railway — سطر «❌ yt-dlp raw error» هيوضح السبب بالظبط.")
 
 
 def _with_yt_fallback(build_opts, call, settings):
