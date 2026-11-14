@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة التحكم | بوت تحميل الفيديوهات 🎬</title>
+<meta name="description" content="لوحة تحكم احترافية لبوت تيليجرام تحميل الفيديوهات MP4 والأغاني MP3 من يوتيوب وتيك توك وسبوتيفاي وأنجامي والمزيد">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══════════ الشريط الجانبي ═══════════ -->
+  <aside class="sidebar" id="sidebar" aria-label="التنقل الرئيسي">
+    <div class="brand">
+      <div class="brand-logo" aria-hidden="true">🎬</div>
+      <div class="brand-text">
+        <strong>Video Downloader</strong>
+        <span>بوت تيليجرام الذكي</span>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button class="nav-item active" data-tab="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span>نظرة عامة</span>
+      </button>
+      <button class="nav-item" data-tab="downloads">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>التنزيلات</span>
+        <em class="nav-badge" id="navDownloadsBadge">0</em>
+      </button>
+      <button class="nav-item" data-tab="users">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>المستخدمون</span>
+      </button>
+      <button class="nav-item" data-tab="broadcast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5-5 18-2.5-7.5L3 11z"/></svg>
+        <span>الإذاعة</span>
+      </button>
+      <button class="nav-item" data-tab="preview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        <span>معاينة البوت</span>
+      </button>
+      <button class="nav-item" data-tab="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>الإعدادات</span>
+      </button>
+    </nav>
+
+    <div class="side-card">
+      <div class="side-card-emoji">🤖</div>
+      <div>
+        <strong>جاهز للتشغيل؟</strong>
+        <p>ضع BOT_TOKEN في ملف .env وسيعمل البوت فوراً</p>
+        <button class="side-card-btn" data-goto="settings">خطوات التشغيل ←</button>
+      </div>
+    </div>
+  </aside>
+  <div class="overlay" id="overlay" hidden></div>
+
+  <!-- ═══════════ المحتوى ═══════════ -->
+  <main class="main">
+
+    <!-- الشريط العلوي -->
+    <header class="topbar">
+      <button class="icon-btn hamburger" id="hamburger" aria-label="القائمة">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+      <div class="topbar-title">
+        <h1 id="pageTitle">نظرة عامة</h1>
+        <p id="pageSubtitle">ملخص حي لأداء البوت وتفاعل المستخدمين</p>
+      </div>
+      <div class="topbar-actions">
+        <div class="live-pill" id="livePill" title="يقرأ البيانات مباشرة من قاعدة SQLite الخاصة بالبوت">
+          <span class="pulse-dot"></span>
+          مباشر
+        </div>
+        <button class="icon-btn" id="refreshBtn" title="تحديث البيانات" aria-label="تحديث">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ═══════════ تبويب: نظرة عامة ═══════════ -->
+    <section class="tab active" id="tab-overview">
+
+      <div class="welcome-banner">
+        <div class="wb-text">
+          <h2>مساء الخير، مشرفنا 👋</h2>
+          <p id="wbDate">…</p>
+          <div class="wb-actions">
+            <button class="btn btn-light" data-goto="preview">📱 جرّب معاينة البوت</button>
+            <button class="btn btn-ghost" data-goto="broadcast">📣 أرسل إذاعة للجميع</button>
+          </div>
+        </div>
+        <div class="wb-art" aria-hidden="true">
+          <div class="wb-float wb-float-1">▶️</div>
+          <div class="wb-float wb-float-2">🎵</div>
+          <div class="wb-float wb-float-3">🎧</div>
+          <div class="wb-float wb-float-4">⬇️</div>
+        </div>
+      </div>
+
+      <!-- بطاقات المؤشرات -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-violet">👥</div>
+          <div class="kpi-body">
+            <span class="kpi-label">إجمالي المستخدمين</span>
+            <strong class="kpi-value" id="kpiUsers">0</strong>
+            <span class="kpi-delta up" id="kpiUsersDelta">+0 اليوم</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-cyan">⬇️</div>
+          <div class="kpi-body">
+            <span class="kpi-label">إجمالي التنزيلات</span>
+            <strong class="kpi-value" id="kpiDownloads">0</strong>
+            <span class="kpi-delta up" id="kpiDownloadsDelta">0 أمس</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-amber">📅</div>
+          <div class="kpi-body">
+            <span class="kpi-label">تنفيذات اليوم</span>
+            <strong class="kpi-value" id="kpiToday">0</strong>
+            <span class="kpi-delta" id="kpiBytes">0 م.بايت مُرسلة</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-green">✅</div>
+          <div class="kpi-body">
+            <span class="kpi-label">معدل نجاح التحميل</span>
+            <strong class="kpi-value"><span id="kpiSuccess">0</span><small>%</small></strong>
+            <span class="kpi-delta" id="kpiFailed">0 عملية فاشلة</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- الرسم البياني + المنصات -->
+      <div class="grid-2-1">
+        <div class="card chart-card">
+          <div class="card-head">
+            <div>
+              <h3>التنزيلات — آخر 30 يوم</h3>
+              <p class="card-sub">عدد عمليات التحميل والعمليات الناجحة يومياً</p>
+            </div>
+            <div class="chart-legend">
+              <span><i class="dot dot-violet"></i> التحميلات</span>
+              <span><i class="dot dot-cyan"></i> الناجحة</span>
+            </div>
+          </div>
+          <div class="chart-wrap" id="areaChartWrap">
+            <svg id="areaChart" viewBox="0 0 720 240" preserveAspectRatio="none" role="img" aria-label="رسم بياني للتنزيلات عبر الزمن"></svg>
+            <div class="chart-tooltip" id="areaTooltip" hidden></div>
+          </div>
+          <div class="chart-x-labels" id="chartXLabels"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>حسب المنصة</h3>
+              <p class="card-sub">توزيع عمليات التحميل</p>
+            </div>
+          </div>
+          <div class="donut-wrap">
+            <svg id="donutChart" viewBox="0 0 160 160" role="img" aria-label="التوزيع حسب المنصة"></svg>
+            <div class="donut-center">
+              <strong id="donutTotal">0</strong>
+              <span>تحميل</span>
+            </div>
+          </div>
+          <ul class="platform-legend" id="platformLegend"></ul>
+        </div>
+      </div>
+
+      <!-- آخر التنزيلات + الأكثر نشاطاً + الجودات -->
+      <div class="grid-2-1">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>آخر التنزيلات</h3>
+              <p class="card-sub">أحدث العمليات لحظة بلحظة</p>
+            </div>
+            <button class="chip-btn" data-goto="downloads">عرض الكل ←</button>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="recentTable">
+              <thead><tr><th>المستخدم</th><th>المحتوى</th><th>الجودة</th><th>الوقت</th><th>الحالة</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="side-stack">
+          <div class="card">
+            <div class="card-head">
+              <div><h3>الأكثر نشاطاً 🏆</h3></div>
+            </div>
+            <ul class="top-users" id="topUsersList"></ul>
+          </div>
+          <div class="card">
+            <div class="card-head"><div><h3>الجودات الأكثر طلباً</h3></div></div>
+            <div class="quality-bars" id="qualityBars"></div>
+            <div class="media-split">
+              <div class="media-split-head"><span>🎬 فيديو MP4 <b id="mp4Count">0</b></span><span>🎧 صوت MP3 <b id="mp3Count">0</b></span></div>
+              <div class="media-split-bar"><div class="msb-mp4" id="mediaBarMp4" style="width:50%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ تبويب: التنزيلات ═══════════ -->
+    <section class="tab" id="tab-downloads">
+      <div class="card">
+        <div class="card-head wrap">
+          <div>
+            <h3>سجل التنزيلات</h3>
+            <p class="card-sub">كل عملية تحميل قام بها مستخدمو البوت</p>
+          </div>
+          <div class="table-tools">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+              <input type="search" id="dlSearch" placeholder="ابحث بالعنوان أو المستخدم…" aria-label="بحث في التنزيلات">
+            </div>
+            <select id="dlPlatform" class="select" aria-label="المنصة">
+              <option value="">كل المنصات</option>
+              <option value="youtube">يوتيوب</option>
+              <option value="tiktok">تيك توك</option>
+              <option value="instagram">إنستجرام</option>
+              <option value="facebook">فيسبوك</option>
+              <option value="x">إكس</option>
+              <option value="spotify">سبوتيفاي</option>
+              <option value="anghami">أنجامي</option>
+              <option value="soundcloud">ساوند كلاود</option>
+            </select>
+            <select id="dlStatus" class="select" aria-label="الحالة">
+              <option value="">كل الحالات</option>
+              <option value="done">✅ ناجحة</option>
+              <option value="failed">❌ فاشلة</option>
+            </select>
+            <button class="btn btn-primary" id="dlExport">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              تصدير CSV
+            </button>
+          </div>
+        </div>
+        <div class="table-scroll tall">
+          <table class="data-table" id="downloadsTable">
+            <thead><tr><th>المستخدم</th><th>المحتوى</th><th>المنصة</th><th>النوع</th><th>الجودة</th><th>الحجم</th><th>التاريخ</th><th>الحالة</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span id="dlRange" class="page-range">…</span>
+          <div class="page-btns">
+            <button class="icon-btn" id="dlPrev" aria-label="السابق"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+            <button class="icon-btn" id="dlNext" aria-label="التالي"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ تبويب: المستخدمون ═══════════ -->
+    <section class="tab" id="tab-users">
+      <div class="card">
+        <div class="card-head wrap">
+          <div>
+            <h3>إدارة المستخدمين</h3>
+            <p class="card-sub">حظر أو إلغاء حظر أي مستخدم بضغطة واحدة</p>
+          </div>
+          <div class="table-tools">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+              <input type="search" id="userSearch" placeholder="ابحث بالاسم أو المعرف…" aria-label="بحث في المستخدمين">
+            </div>
+          </div>
+        </div>
+        <div class="table-scroll tall">
+          <table class="data-table" id="usersTable">
+            <thead><tr><th>#</th><th>المستخدم</th><th>المعرف</th><th>انضم في</th><th>آخر ظهور</th><th>التحميلات</th><th>الحالة</th><th>إجراء</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span id="usersRange" class="page-range">…</span>
+          <div class="page-btns">
+            <button class="icon-btn" id="usersPrev" aria-label="السابق"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+            <button class="icon-btn" id="usersNext" aria-label="التالي"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ تبويب: الإذاعة ═══════════ -->
+    <section class="tab" id="tab-broadcast">
+      <div class="broadcast-grid">
+        <div class="card">
+          <div class="card-head"><div><h3>📣 إذاعة جديدة</h3><p class="card-sub">ستصل رسالتك لكل مستخدم نشط (غير محظور) عبر البوت</p></div></div>
+          <label class="field-label" for="broadcastText">نص الرسالة</label>
+          <textarea id="broadcastText" class="textarea" rows="7" maxlength="4000" placeholder="مثال: أهلاً بيكم! 🎉 نزّلنا جودة 1080p الجديدة…"></textarea>
+          <div class="textarea-foot"><span id="charCount">0 / 4000</span></div>
+          <div class="broadcast-preview" id="broadcastPreview">
+            <div class="bp-label">معاينة الرسالة كما ستظهر في تيليجرام:</div>
+            <div class="tg-bubble bot-bubble" id="broadcastPreviewBubble">📣 <b>رسالة من الإدارة</b><br><br><span class="muted">اكتب شيئاً لترى المعاينة…</span></div>
+          </div>
+          <button class="btn btn-primary btn-xl" id="sendBroadcastBtn">📤 إرسال للجميع</button>
+          <p class="micro-note">يتم الإرسال تدريجياً بمعدل آمن (~20 رسالة/ثانية) لتفادي حدود تيليجرام، ويمكن متابعة التقدم لحظياً.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><h3>سجل الإذاعات</h3><p class="card-sub">آخر الرسائل الجماعية وحالة تسليمها</p></div></div>
+          <div class="broadcast-list" id="broadcastList"><div class="empty-state">لا توجد إذاعات بعد</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ تبويب: معاينة البوت ═══════════ -->
+    <section class="tab" id="tab-preview">
+      <div class="preview-layout">
+        <div class="preview-info">
+          <span class="preview-tag">معاينة حية تفاعلية</span>
+          <h2>هكذا يرى المستخدم<br>البوت في محادثته ✨</h2>
+          <p>جرّب المحادثة بنفسك: اضغط على أي رابط جاهز أو الصق رابطاً حقيقياً، ثم اختر الجودة — تماماً كما سيحدث عندما تعمل في تيليجرام.</p>
+          <ol class="preview-steps">
+            <li><b>1</b> يشارك المستخدم أي رابط (يوتيوب، تيك توك، سبوتيفاي…)</li>
+            <li><b>2</b> البوت يرد بمعاينة حية: الغلاف، العنوان، المدة، المشاهدات</li>
+            <li><b>3</b> يضغط المستخدم الجودة المطلوبة (MP4 أو MP3)</li>
+            <li><b>4</b> يستلم الملف فوراً داخل المحادثة ⚡</li>
+          </ol>
+          <div class="preview-chips">
+            <span class="chips-label">جرّب رابطاً جاهزاً:</span>
+            <div class="chips-row">
+              <button class="sample-chip" data-sample="youtube">▶️ يوتيوب</button>
+              <button class="sample-chip" data-sample="tiktok">🎵 تيك توك</button>
+              <button class="sample-chip" data-sample="spotify">🟢 سبوتيفاي</button>
+              <button class="sample-chip" data-sample="anghami">🟣 أنجامي</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="phone-notch"></div>
+            <div class="phone-statusbar"><span id="phoneClock">21:45</span><span class="phone-icons">📶 🔋</span></div>
+            <div class="tg-header">
+              <button class="tg-back" aria-label="رجوع"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+              <div class="tg-avatar">🎬</div>
+              <div class="tg-meta"><strong>Video Downloader Bot</strong><span>online · بوت تحميل الفيديوهات</span></div>
+              <button class="tg-icon" id="clearChatBtn" title="مسح المحادثة" aria-label="مسح المحادثة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+            </div>
+
+            <div class="tg-chat" id="tgChat" aria-live="polite"></div>
+
+            <form class="tg-inputbar" id="tgForm">
+              <input type="text" id="tgInput" placeholder="الصق رابط الفيديو أو الأغنية هنا…" autocomplete="off" aria-label="حقل الرابط">
+              <button type="submit" class="tg-send" aria-label="إرسال"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></button>
+            </form>
+          </div>
+          <p class="phone-caption">↑ محادثة حقيقية تفاعلية — اضغط أي جودة لإتمام التحميل</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ تبويب: الإعدادات ═══════════ -->
+    <section class="tab" id="tab-settings">
+      <div class="settings-grid">
+
+        <div class="card">
+          <div class="card-head"><div><h3>🤖 حالة البوت</h3><p class="card-sub">يُقرأ من متغيرات البيئة وقاعدة البيانات</p></div></div>
+          <ul class="config-list" id="configList"><li class="config-row"><span>التحميل…</span></li></ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><h3>🚀 تشغيل البوت لأول مرة</h3><p class="card-sub">ثلاث خطوات فقط من الصفر للعمل</p></div></div>
+          <ol class="setup-steps">
+            <li><b>1</b><div><strong>ثبّت المكتبات</strong><pre dir="ltr">pip install -r requirements.txt</pre></div></li>
+            <li><b>2</b><div><strong>جهّز ملف البيئة وضع توكن @BotFather</strong><pre dir="ltr">cp .env.example .env
+# ثم عدّل BOT_TOKEN داخل .env</pre></div></li>
+            <li><b>3</b><div><strong>شغّل البوت</strong><pre dir="ltr">python -m bot</pre></div></li>
+          </ol>
+          <p class="micro-note">⚠️ يتطلب تحويل MP3 وجود <code>ffmpeg</code> على الخادم — موجود افتراضياً في Dockerfile وملف docker-compose.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><h3>⌨️ أوامر البوت</h3><p class="card-sub">ما يمكن للمستخدمين كتابته</p></div></div>
+          <table class="data-table commands-table"><tbody>
+            <tr><td><code>/start</code></td><td>الرسالة الترحيبية مع أزرار القائمة</td></tr>
+            <tr><td><code>/help</code></td><td>شرح طريقة الاستخدام والمنصات المدعومة</td></tr>
+            <tr><td><code>/about</code></td><td>نبذة عن البوت</td></tr>
+            <tr><td><code>/stats</code></td><td>إحصائيات فورية (للمشرفين)</td></tr>
+            <tr><td><code>/ban &lt;id&gt;</code></td><td>حظر مستخدم (للمشرفين)</td></tr>
+            <tr><td><code>/unban &lt;id&gt;</code></td><td>إلغاء حظر مستخدم (للمشرفين)</td></tr>
+            <tr><td><code>/broadcast &lt;نص&gt;</code></td><td>إذاعة لكل المستخدمين (للمشرفين)</td></tr>
+          </tbody></table>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><h3>🔗 روابط مفيدة</h3><p class="card-sub">كل ما تحتاجه للنشر والصيانة</p></div></div>
+          <ul class="links-list">
+            <li><a href="https://t.me/BotFather" target="_blank" rel="noopener">🤖 @BotFather — إنشاء البوت والحصول على التوكن</a></li>
+            <li><a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener">📥 yt-dlp — محرك التحميل (يوتيوب/تيك توك/…)</a></li>
+            <li><a href="https://core.telegram.org/bots/api" target="_blank" rel="noopener">📚 Telegram Bot API — التوثيق الرسمي</a></li>
+            <li><a href="https://docs.aiogram.dev" target="_blank" rel="noopener">📘 aiogram 3 — مكتبة البوت المستخدمة</a></li>
+          </ul>
+          <div class="disclaimer">⚖️ البوت للاستخدام الشخصي فقط. يُرجى احترام حقوق الملكية الفكرية وشروط استخدام كل منصة.</div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- مودال تأكيد الإذاعة -->
+<div class="modal-overlay" id="confirmModal" hidden role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="modal-card">
+    <div class="modal-emoji">📣</div>
+    <h3 id="confirmTitle">إرسال للجميع؟</h3>
+    <p>ستصل هذه الرسالة إلى <b id="confirmCount">كل</b> مستخدمي البوت. هذا الإجراء لا يمكن التراجع عنه.</p>
+    <div class="modal-body" id="confirmPreview"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="confirmCancel">إلغاء</button>
+      <button class="btn btn-primary" id="confirmSend">✅ إرسال الآن</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts" aria-live="polite"></div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
