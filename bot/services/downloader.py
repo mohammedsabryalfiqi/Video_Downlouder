@@ -5,7 +5,9 @@
   1. سلسلة عملاء YouTube بديلة (android/ios ← tv ← web_safari ← الافتراضي)
      تُجرَّب تلقائياً حتى لو حظر عميلٌ ما.
   2. كوكيز المستخدم نفسه عبر YTDLP_COOKIES_FILE أو YTDLP_COOKIES_TEXT
-     (الحل النهائي للحظر — انظر README قسم «يوتيوب يطلب تسجيل الدخول»).
+     (الحل النهائي للحظر).
+  3. ملف الكوكيز المكسور (ترويسة ناقصة/خطأ إملائي/base64 بدون بادئة) يُصلَّح
+     تلقائياً قبل الاستخدام — و Deploy Logs يطبع سطر «🍪» يؤكد عدد السجلات.
 
 ملاحظة: تيك توك يُرجع yt-dlp روابط بدون علامة مائية (play URL) افتراضياً.
 """
@@ -14,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import os
 import re
 import tempfile
@@ -23,6 +26,8 @@ from pathlib import Path
 import yt_dlp
 
 from bot.constants import MP4_HEIGHT
+
+log = logging.getLogger("bot.downloader")
 
 
 class DownloadError(Exception):
@@ -53,39 +58,103 @@ _BOT_CHECK_RE = re.compile(
 )
 
 # سلسلة عملاء يوتيوب — yt-dlp يجرب أولها وينتقل للتالي فقط عند فشل «حظر الروبوت»
-_YT_CLIENT_CHAIN = [["android", "ios"], ["tv", "android"], ["web_safari"], ["ios"], [None]]
+_YT_CLIENT_CHAIN = [["android", "ios"], ["tv", "android"], ["web_safari"], ["android_vr"], [None]]
 
 # كوكيز من متغير البيئة تُكتب لملف مؤقت مرة واحدة فقط
 _cookies_cache: str | None = None
+_cookie_stats: dict = {"count": 0, "domains": [], "configured": False}
+_B64_CHARS_RE = re.compile(r"^[A-Za-z0-9+/=\s]+$", re.S)
+
+
+def _normalize_cookies(content: str):
+    """يصلح ملف Netscape مهما كان مدخله (ترويسة ناقصة/خطأ إملائي/base64 خام).
+
+    يرجع (النص المصحح, إحصائيات) أو (None, إحصائيات) لو لا توجد أي سجلات صالحة.
+    """
+    stats = {"count": 0, "domains": []}
+
+    text = content.replace("\r\n", "\n").replace("\r", "\n").strip().strip('"').strip("'")
+    # لو الصقوا السطر كاملاً: YTDLP_COOKIES_TEXT=...
+    if text.startswith("YTDLP_COOKIES_TEXT="):
+        text = text.split("=", 1)[1].strip().strip('"').strip("'")
+
+    # base64 ببادئة صريحة
+    if text.startswith("base64:"):
+        try:
+            text = base64.b64decode(text[len("base64:"):], validate=False).decode("utf-8", "ignore")
+        except Exception:
+            return None, stats
+    elif "Cookie File" not in text and _B64_CHARS_RE.match(text):
+        # غالباً base64 خام بدون بادئة — جرّب فكّه (النجاح يتطلب سطور كوكيز فعلية)
+        try:
+            decoded = base64.b64decode(text, validate=False).decode("utf-8", "ignore")
+            if decoded.count("\t") >= 7:
+                text = decoded
+        except Exception:
+            pass
+
+    lines = [l for l in text.split("\n") if l.strip()]
+    if not lines:
+        return None, stats
+
+    # البوت يصلح أي خطأ في السطر الأول (مثل «Notscape» الشهيرة)
+    if lines[0].startswith("#"):
+        lines[0] = "# Netscape HTTP Cookie File"
+    else:
+        lines.insert(0, "# Netscape HTTP Cookie File")
+
+    cookie_lines = [
+        l for l in lines[1:]
+        if not l.lstrip().startswith("#") and len(l.split("\t")) >= 7
+    ]
+    stats = {
+        "count": len(cookie_lines),
+        "domains": sorted({l.split("\t")[0].lstrip(".") for l in cookie_lines}),
+    }
+    if not cookie_lines:
+        return None, stats
+    return "\n".join(lines) + "\n", stats
 
 
 def _cookies_path(settings) -> str | None:
-    """يرجع مسار ملف كوكيز جاهز لـ yt-dlp (أو None لو غير مضبوط)."""
-    global _cookies_cache
-    # 1) ملف صريح
+    global _cookies_cache, _cookie_stats
+    # 1) ملف صريح من متغير بيئة
     cookies_file = getattr(settings, "ytdlp_cookies_file", "") or ""
     if cookies_file and Path(cookies_file).is_file():
+        _cookie_stats = {"configured": True, **_cookie_stats}
         return cookies_file
     # 2) محتوى من متغير بيئة (نص خام أو base64:...) — مثالي لـ Railway
     cookies_text = getattr(settings, "ytdlp_cookies_text", "") or ""
     if not cookies_text.strip():
+        _cookie_stats = {"configured": False, "count": 0, "domains": []}
         return None
     if _cookies_cache:
         return _cookies_cache
-    content = cookies_text
-    if content.startswith("base64:"):
-        try:
-            content = base64.b64decode(content[len("base64:"):], validate=False).decode("utf-8", "ignore")
-        except Exception:
-            return None
+
+    normalized, stats = _normalize_cookies(cookies_text)
+    _cookie_stats = {"configured": True, **stats}
+    if not normalized:
+        log.warning("⚠️ YTDLP_COOKIES_TEXT مضبوط لكن لم أجد أي سجل كوكيز صالح داخله — سأكمل بدون كوكيز")
+        return None
     try:
         tmp = Path(tempfile.gettempdir()) / "video_downlouder_cookies.txt"
-        tmp.write_text(content, encoding="utf-8")
+        tmp.write_text(normalized, encoding="utf-8")
         os.chmod(tmp, 0o600)
     except OSError:
         return None
     _cookies_cache = str(tmp)
     return _cookies_cache
+
+
+def cookies_report(settings) -> str:
+    """سطر تشخيص آمن للطباعة عند الإقلاع — بدون أي قيم سرية."""
+    path = _cookies_path(settings)
+    if not _cookie_stats.get("configured"):
+        return "ℹ️ كوكيز يوتيوب: غير مضبوطة — سأعتمد على عملاء يوتيوب البديلة تلقائياً"
+    if path and _cookie_stats.get("count"):
+        domains = ", ".join(_cookie_stats["domains"]) or "?"
+        return f"🍪 كوكيز يوتيوب: {_cookie_stats['count']} سجل صالح ({domains}) — يوتيوب سيعاملك كمسجل دخول"
+    return "⚠️ YTDLP_COOKIES_TEXT مضبوط لكن لم يُكتشف أي كوكيز صالح — تأكد أنك لصقت الملف كاملاً"
 
 
 def _base_opts(settings) -> dict:
@@ -135,8 +204,8 @@ def _map_error(exc: Exception) -> DownloadError:
         return DownloadError("🚫 هذا المحتوى غير متاح أو تم حذفه.")
     if "login" in low or "sign in" in low or "cookies" in low:
         return DownloadError(
-            "🔑 المنصة تمنع التحميل بدون كوكيز — أضف متغير YTDLP_COOKIES_TEXT "
-            "بكوكيز حسابك (الخطوات في README ← «يوتيوب يطلب تسجيل الدخول»)."
+            "🔑 المنصة تمنع التحميل بدون كوكيز صالحة — راجع Deploy Logs على Railway؛\n"
+            "لازم تلاقي سطر «🍪 كوكيز يوتيوب: N سجل صالح» — لو غير موجود فالكونفيج لم يُقرأ أو الكوكيز مكسورة."
         )
     if "unsupported url" in low:
         return DownloadError("🔗 الرابط غير مدعوم. جرّب رابطاً آخر.")
@@ -150,11 +219,7 @@ def _map_error(exc: Exception) -> DownloadError:
 
 
 def _with_yt_fallback(build_opts, call, settings):
-    """يجرب العملية بسلسلة عملاء يوتيوب ويعيد المحاولة فقط عند حظر «الروبوت».
-
-    build_opts() → dict جديد بكل محاولة (عشان نضيف extractor_args مستقل)
-    call(opts)   → النتيجة المطلوبة
-    """
+    """يجرب العملية بسلسلة عملاء يوتيوب ويعيد المحاولة فقط عند حظر «الروبوت»."""
     last_exc: Exception | None = None
     for clients in _YT_CLIENT_CHAIN:
         opts = build_opts()
@@ -258,7 +323,6 @@ def download_video_sync(info: MediaInfo, max_height: str, settings, tmpdir: Path
     height = MP4_HEIGHT.get(max_height, 720)
     outtmpl = str(tmpdir / "%(title).90s.%(ext)s")
 
-    # يفضّل ملفات MP4 جاهزة (صوت+صورة في ملف واحد)، وإلا يدمج ويضيف ffmpeg
     if height is None:
         fmt = "best[ext=mp4][vcodec!=none][acodec!=none]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
     else:

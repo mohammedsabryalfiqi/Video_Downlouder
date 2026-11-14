@@ -15,6 +15,7 @@ from bot.config import settings
 from bot.database import Database
 from bot.handlers import register_handlers
 from bot.services.broadcaster import broadcast_worker
+from bot.services.downloader import cookies_report
 
 # رموز الخروج — يفهمها scripts/start-all.sh ويحدد هل يعيد تشغيل البوت أم لا
 EXIT_CLEAN = 0        # إيقاف طبيعي
@@ -92,6 +93,7 @@ async def main() -> None:
         "✅ بوت تحميل الفيديوهات يعمل — الإصدار %s | المالك: %s | المشرفون: %d",
         __version__, settings.owner_id, len(settings.admin_ids),
     )
+    log.info(cookies_report(settings))
 
     try:
         await bot.delete_webhook(drop_pending_updates=True)
