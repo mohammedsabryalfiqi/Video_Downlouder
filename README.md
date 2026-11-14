@@ -198,7 +198,7 @@ docker compose up -d --build
 
 ```
 Video_Downlouder/
-├── railway.json             # إعدادات Railway (Dockerfile + healthcheck + restart)
+├── railway.json             # إعدادات Railway (Dockerfile + restart تلقائي)
 ├── Dockerfile               # python:3.11-slim + ffmpeg + bash
 ├── .dockerignore
 ├── docker-compose.yml       # محلياً: bot + dashboard يتشاركان ./data
@@ -223,9 +223,12 @@ Video_Downlouder/
 
 | المشكلة | الحل |
 |---|---|
+| **«Application failed to respond»** على دومين Railway | الحاوية تموت عند الإقلاع. افتح **Deploy Logs** وتأكد بالترتيب: (1) `BOT_TOKEN` صحيح ومن @BotFather، (2) لا توجد نسخة أخرى من البوت تعمل بنفس التوكن (خطأ `Conflict`) — أوقفها من الجهاز/الخدمة الأخرى، (3) Target port في إعدادات الدومين = `8080` بالظبط وطابق `PORT` في Variables، (4) قاعدة `DATABASE_PATH` تشير داخل `/app/data` |
+| البوت لا يرد لكن اللوحة تفتح | نسخة أخرى من البوت تعمل بنفس التوكن (Conflict) أو خطأ عابر في الشبكة — البوت يعيد المحاولة تلقائياً كل 15–20 ثانية، فقط أوقف النسخة الأخرى |
+| `Conflict: terminated by other getUpdates request` | Telegram يسمح بنسخة polling واحدة لكل توكن — أوقف كل عملية `python -m bot` أخرى أو اصنع بوت جديد من @BotFather |
+| اللوحة 502 | تأكد أن نموذج التشغيل هو `bash scripts/start-all.sh` (من railway.json) وليس `python -m bot` فقط |
 | البناء فشل (`pip install` timeout) | أعد الـ Deploy — أو تأكد من فروع متغيرات البيئة |
 | البوت لا يرد | **Deploy Logs** — غالباً `BOT_TOKEN` خطأ أو ناقص |
-| اللوحة 502 | تأكد أن السيرفس يعمل بـ `scripts/start-all.sh` (من railway.json) وليس `python -m bot` فقط |
 | `file is too big` عند إرسال ملفات 50–2000MB | فعّل خادم Bot API المحلي (القسم 6 في Railway أعلاه) |
 | المستخدمون/الإحصائيات بتختفي بعد كل نشر | لم تركب Volume على `/app/data` — راجع الخطوة 4 |
 | خطأ `429 Too Many Requests` | المنصة تحد من الطلبات من IP الخادم — فعّل `YTDLP_PROXY` أو انتظر |
