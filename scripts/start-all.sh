@@ -1,19 +1,52 @@
 #!/usr/bin/env bash
 # يشتغل البوت + لوحة التحكم في نفس الحاوية (مثالي لـ Railway — خدمة واحدة، Volume واحدة على /app/data)
-set -euo pipefail
+#
+# الفلسفة: اللوحة هي العمل الحرج أمام الزائر — لو ماتت نوقف الحاوية كلها ليقوم Railway بإعادة تشغيلها.
+# البوت بيشتغل تحت إشراف: لو وقع لأي سبب (شبكة، تضارب نسخة، خطأ مؤقت) يُعاد تشغيله تلقائياً،
+# ولو كان الخطأ قاتلاً (التوكن غير صالح، Exit code 2) تتوقف محاولات البوت واللوحة تفضل متاحة
+# عشان تقدر تفتح الرابط وتقرأ البيانات من الإعدادات وتصلح التوكن.
+set -uo pipefail
 
 PORT="${PORT:-8080}"
 echo "🚀 تشغيل البوت + لوحة التحكم — اللوحة على المنفذ ${PORT}"
 
-python -m bot & BOT_PID=$!
-uvicorn dashboard.app:app --host 0.0.0.0 --port "${PORT}" & DASH_PID=$!
+####################################
+# البوت (تحت الإشراف)
+####################################
+(
+  failures=0
+  while true; do
+    python -m bot
+    code=$?
+    if [ "$code" -eq 0 ]; then
+      echo "🛑 البوت توقف بشكل طبيعي."
+      break
+    fi
+    if [ "$code" -eq 2 ]; then
+      echo "💀 خطأ قاتل في إعدادات البوت (غالباً BOT_TOKEN) — لن تُعاد المحاولة. اللوحة متاحة للتشخيص."
+      break
+    fi
+    failures=$((failures + 1))
+    if [ "$failures" -ge 8 ]; then
+      echo "💀 البوت فشل ${failures} مرات متتالية — سيتوقف واللوحة تبقى متاحة للتشخيص."
+      break
+    fi
+    echo "⚠️ البوت توقف (كود ${code}) — محاولة ${failures}/8 بعد 10 ثوانٍ…"
+    sleep 10
+  done
+) & BOT_PID=$!
 
-trap 'echo "🛑 إيقاف…"; kill "${BOT_PID}" "${DASH_PID}" 2>/dev/null || true' TERM INT
+####################################
+# اللوحة (العمل الحرج)
+####################################
+python -m uvicorn dashboard.app:app --host 0.0.0.0 --port "${PORT}" & DASH_PID=$!
 
-# لو أي عملية خلصت (كراش) نوقف الباقي عشان Railway يعيد تشغيل الحاوية كلها
-wait -n "${BOT_PID}" "${DASH_PID}"
+trap 'echo "🛑 إيقاف بطلب من المنصة — إغلاق نظيف"; kill "${BOT_PID}" "${DASH_PID}" 2>/dev/null; pkill -P "${BOT_PID}" 2>/dev/null; exit 0' TERM INT
+
+# لو اللوحة ماتت — نوقف الحاوية كلها عشان Railway يعيد تشغيلها بالكامل
+wait "${DASH_PID}"
 EXIT_CODE=$?
-echo "⚠️ عملية توقفت بكود ${EXIT_CODE} — إيقاف الخدمة لإعادة التشغيل"
-kill "${BOT_PID}" "${DASH_PID}" 2>/dev/null || true
-wait || true
+echo "⚠️ اللوحة توقفت بكود ${EXIT_CODE} — إيقاف الحاوية لإعادة تشغيلها"
+kill "${BOT_PID}" 2>/dev/null || true
+pkill -P "${BOT_PID}" 2>/dev/null || true
 exit "${EXIT_CODE}"
