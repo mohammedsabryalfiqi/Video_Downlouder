@@ -1,0 +1,19 @@
+services:
+  bot:
+    build: .
+    container_name: video-downlouder-bot
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    container_name: video-downlouder-dashboard
+    command: uvicorn dashboard.app:app --host 0.0.0.0 --port 8080
+    env_file: .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
