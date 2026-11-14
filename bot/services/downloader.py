@@ -73,6 +73,15 @@ def _normalize_cookies(content: str):
     """
     stats = {"count": 0, "domains": []}
 
+    # لصق بأحرف هروب حرفية: \n \t \r كأحرف منفصلة (شائع عند النسخ من مخرجات الطرفية)
+    if "\\" in (content or ""):
+        content = (
+            content.replace("\\r\\n", "\n")
+            .replace("\\n", "\n")
+            .replace("\\t", "\t")
+            .replace("\\r", "\n")
+        )
+
     text = content.replace("\r\n", "\n").replace("\r", "\n").strip().strip('"').strip("'")
     # لو الصقوا السطر كاملاً: YTDLP_COOKIES_TEXT=...
     if text.startswith("YTDLP_COOKIES_TEXT="):
@@ -147,14 +156,32 @@ def _cookies_path(settings) -> str | None:
 
 
 def cookies_report(settings) -> str:
-    """سطر تشخيص آمن للطباعة عند الإقلاع — بدون أي قيم سرية."""
+    """سطر تشخيص آمن للطباعة عند الإقلاع — بدون أي قيم سرية.
+
+    يفحص فعلياً أن yt-dlp قادر على قراءة ملف الكوكيز — فلا تكتشف المشكلة
+    من رسالة خطأ غامضة بعد أول تحميل، بل من أول سطر في Deploy Logs.
+    """
     path = _cookies_path(settings)
     if not _cookie_stats.get("configured"):
         return "ℹ️ كوكيز يوتيوب: غير مضبوطة — سأعتمد على عملاء يوتيوب البديلة تلقائياً"
     if path and _cookie_stats.get("count"):
         domains = ", ".join(_cookie_stats["domains"]) or "?"
-        return f"🍪 كوكيز يوتيوب: {_cookie_stats['count']} سجل صالح ({domains}) — يوتيوب سيعاملك كمسجل دخول"
-    return "⚠️ YTDLP_COOKIES_TEXT مضبوط لكن لم يُكتشف أي كوكيز صالح — تأكد أنك لصقت الملف كاملاً"
+        count = _cookie_stats["count"]
+        # تحقق فعلي: هل yt-dlp نفسه قادر على تحميل الملف؟
+        try:
+            from yt_dlp.cookies import YoutubeDLCookieJar
+            jar = YoutubeDLCookieJar(path)
+            jar.load(ignore_discard=True, ignore_expires=True)
+            return f"🍪 كوكيز يوتيوب: {len(jar)} سجل صالح ({domains}) — يوتيوب سيعاملك كمسجل دخول"
+        except Exception as exc:
+            return (
+                f"❌ YTDLP_COOKIES_TEXT مضبوط ({count} سجل) لكن yt-dlp رفض الملف: {exc} — "
+                "راجع التنسيق (لازم: base64 -w0 cookies.txt ثم «base64:الناتج»)"
+            )
+    return (
+        "❌ YTDLP_COOKIES_TEXT مضبوط لكن لم يُكتشف أي كوكيز صالح — "
+        "تأكد أن القيمة هي محتوى cookies.txt كاملاً (أو base64:... الناتج من base64 -w0)"
+    )
 
 
 def _base_opts(settings) -> dict:
@@ -202,6 +229,12 @@ def _map_error(exc: Exception) -> DownloadError:
         return DownloadError("🔞 محتوى محظور على القُصّر — أضف كوكيز حسابك (YTDLP_COOKIES_TEXT) للتحميل.")
     if "unavailable" in low or "not available" in low or "removed" in low:
         return DownloadError("🚫 هذا المحتوى غير متاح أو تم حذفه.")
+    if re.search(r"(does not look like a netscape|unable to load cookies|failed to load cookies|error loading cookies|cookie.*load.*error|load(ing)?.{0,30}cookie)", low):
+        return DownloadError(
+            "🍪 متغير YTDLP_COOKIES_TEXT مضبوط لكن yt-dlp لم يستطع قراءة الملف.\n"
+            "افحص Deploy Logs على Railway — لازم تلاقي سطر «🍪 كوكيز يوتيوب: N سجل صالح».\n"
+            "لو ظهر سطر «❌»، صحح القيمة: نفّذ `base64 -w0 cookies.txt` وضع الناتج بعد `base64:` — بدون أسطر وبلا مسافات."
+        )
     if "login" in low or "sign in" in low or "cookies" in low:
         return DownloadError(
             "🔑 المنصة تمنع التحميل بدون كوكيز صالحة — راجع Deploy Logs على Railway؛\n"
